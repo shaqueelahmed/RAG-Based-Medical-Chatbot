@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 import streamlit as st
 from dotenv import load_dotenv
@@ -11,7 +12,25 @@ from langchain_huggingface import HuggingFaceEmbeddings
 
 load_dotenv()
 
-DB_FAISS_PATH = "vectorstore/db_faiss"
+DB_FAISS_PATH = os.getenv("DB_FAISS_PATH", "vectorstore/db_faiss")
+DATA_PATH = os.getenv("DATA_PATH", "data/")
+
+
+def ensure_vectorstore_exists():
+    if os.path.exists(DB_FAISS_PATH):
+        return
+
+    data_dir = Path(DATA_PATH)
+    pdf_files = list(data_dir.glob("*.pdf")) if data_dir.exists() else []
+
+    if not pdf_files:
+        raise FileNotFoundError(
+            "No PDF files were found in the deployment environment. Place a legal source PDF in the data folder or set DATA_PATH to the folder containing the PDF before running the app."
+        )
+
+    from create_memory_for_llm import main as build_index
+
+    build_index()
 
 
 def build_custom_prompt():
@@ -35,6 +54,8 @@ Answer directly and concisely.
 
 @st.cache_resource
 def get_vectorstore():
+    ensure_vectorstore_exists()
+
     embedding_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
     db = FAISS.load_local(DB_FAISS_PATH, embedding_model, allow_dangerous_deserialization=True)
     return db
@@ -44,7 +65,13 @@ def get_vectorstore():
 def get_llm():
     groq_api_key = os.environ.get("GROQ_API_KEY")
     if not groq_api_key:
-        raise ValueError("GROQ_API_KEY is not set. Add it to the .env file or environment variables.")
+        try:
+            groq_api_key = st.secrets["GROQ_API_KEY"]
+        except Exception:
+            groq_api_key = None
+
+    if not groq_api_key:
+        raise ValueError("GROQ_API_KEY is not set. Add it to .env locally or to Streamlit secrets for deployment.")
 
     return ChatGroq(
         model="llama-3.1-8b-instant",

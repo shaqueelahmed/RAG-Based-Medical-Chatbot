@@ -14,7 +14,7 @@ wheels/
 .env.*
 
 # Source documents
-data/*.pdf
+
 
 # Generated vector stores
 vectorstore/

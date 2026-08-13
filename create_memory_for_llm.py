@@ -1,3 +1,5 @@
+import os
+
 from dotenv import load_dotenv
 from langchain_community.document_loaders import DirectoryLoader, PyPDFLoader
 from langchain_community.vectorstores import FAISS
@@ -6,8 +8,8 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 load_dotenv()
 
-DATA_PATH = "data/"
-DB_FAISS_PATH = "vectorstore/db_faiss"
+DATA_PATH = os.getenv("DATA_PATH", "data/")
+DB_FAISS_PATH = os.getenv("DB_FAISS_PATH", "vectorstore/db_faiss")
 
 
 def load_pdf_files(data):
@@ -28,6 +30,7 @@ def get_embedding_model():
 
 
 def main():
+    os.makedirs(os.path.dirname(DB_FAISS_PATH) or ".", exist_ok=True)
     documents = load_pdf_files(data=DATA_PATH)
     text_chunks = create_chunks(extracted_data=documents)
     embedding_model = get_embedding_model()
