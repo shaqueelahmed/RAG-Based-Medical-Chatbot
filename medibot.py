@@ -1,97 +1,95 @@
 import os
-import streamlit as st
 
-from langchain_huggingface import HuggingFaceEmbeddings
+import streamlit as st
+from dotenv import load_dotenv
+from langchain.chains import create_retrieval_chain
+from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_community.vectorstores import FAISS
 from langchain_core.prompts import PromptTemplate
 from langchain_groq import ChatGroq
-from langchain import hub 
-from langchain.chains import create_retrieval_chain
-from langchain.chains.combine_documents import create_stuff_documents_chain
+from langchain_huggingface import HuggingFaceEmbeddings
 
-
-## Uncomment the following files if you're not using pipenv as your virtual environment manager
-from dotenv import load_dotenv
 load_dotenv()
 
+DB_FAISS_PATH = "vectorstore/db_faiss"
 
-DB_FAISS_PATH="vectorstore/db_faiss"
+
+def build_custom_prompt():
+    return PromptTemplate(
+        template="""
+You are a medical assistant. Use only the information in the provided context.
+If the context contains an exact answer, give it directly and clearly.
+If the context does not contain a direct answer but includes closely related information, summarize the closest relevant information and clearly label it as related context rather than a direct statement.
+If the context is insufficient, say exactly: "I don't have enough information in the provided context to answer this accurately."
+Do not invent or assume medical facts.
+Do not provide information that is not supported by the context.
+
+Context: {context}
+Question: {input}
+
+Answer directly and concisely.
+""".strip(),
+        input_variables=["context", "input"],
+    )
+
+
 @st.cache_resource
 def get_vectorstore():
-    embedding_model=HuggingFaceEmbeddings(model_name='sentence-transformers/all-MiniLM-L6-v2')
-    db=FAISS.load_local(DB_FAISS_PATH, embedding_model, allow_dangerous_deserialization=True)
+    embedding_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+    db = FAISS.load_local(DB_FAISS_PATH, embedding_model, allow_dangerous_deserialization=True)
     return db
 
 
-def set_custom_prompt(custom_prompt_template):
-    prompt=PromptTemplate(template=custom_prompt_template, input_variables=["context", "question"])
-    return prompt
+@st.cache_resource
+def get_llm():
+    groq_api_key = os.environ.get("GROQ_API_KEY")
+    if not groq_api_key:
+        raise ValueError("GROQ_API_KEY is not set. Add it to the .env file or environment variables.")
+
+    return ChatGroq(
+        model="llama-3.1-8b-instant",
+        temperature=0.1,
+        max_tokens=512,
+        api_key=groq_api_key,
+    )
 
 
-
+@st.cache_resource
+def get_rag_chain():
+    vectorstore = get_vectorstore()
+    llm = get_llm()
+    custom_prompt = build_custom_prompt()
+    combine_docs_chain = create_stuff_documents_chain(llm, custom_prompt)
+    retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+    return create_retrieval_chain(retriever, combine_docs_chain)
 
 
 def main():
-    st.title("Ask Chatbot!")
+    st.title("Cancer Encyclopedia Assistant")
+    st.caption("A RAG-based AI chatbot for retrieving information from The Gale Encyclopedia of Cancer")
 
-    if 'messages' not in st.session_state:
+    if "messages" not in st.session_state:
         st.session_state.messages = []
 
     for message in st.session_state.messages:
-        st.chat_message(message['role']).markdown(message['content'])
+        st.chat_message(message["role"]).markdown(message["content"])
 
-    prompt=st.chat_input("Pass your prompt here")
+    prompt = st.chat_input("Pass your prompt here")
 
     if prompt:
-        st.chat_message('user').markdown(prompt)
-        st.session_state.messages.append({'role':'user', 'content': prompt})
+        st.chat_message("user").markdown(prompt)
+        st.session_state.messages.append({"role": "user", "content": prompt})
 
-        CUSTOM_PROMPT_TEMPLATE = """
-                Use the pieces of information provided in the context to answer user's question.
-                If you dont know the answer, just say that you dont know, dont try to make up an answer. 
-                Dont provide anything out of the given context
+        try:
+            rag_chain = get_rag_chain()
+            response = rag_chain.invoke({"input": prompt})
+            result = response.get("answer", "I could not generate an answer from the available context.")
 
-                Context: {context}
-                Question: {question}
+            st.chat_message("assistant").markdown(result)
+            st.session_state.messages.append({"role": "assistant", "content": result})
+        except Exception as exc:
+            st.error(f"Error: {exc}")
 
-                Start the answer directly. No small talk please.
-                """
-        
-        #HUGGINGFACE_REPO_ID="mistralai/Mistral-7B-Instruct-v0.3" # PAID
-        #HF_TOKEN=os.environ.get("HF_TOKEN")  
-
-        #TODO: Create a Groq API key and add it to .env file
-        
-        try: 
-            vectorstore=get_vectorstore()
-            if vectorstore is None:
-                st.error("Failed to load the vector store")
-            
-
-            GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
-            GROQ_MODEL_NAME = "llama-3.1-8b-instant"
-            llm = ChatGroq(
-                model = GROQ_MODEL_NAME,
-                temperature = 0.5,
-                max_tokens = 512,
-                api_key = GROQ_API_KEY,
-            )
-
-            retrieval_qa_chat_prompt = hub.pull("langchain-ai/retrieval-qa-chat")
-
-            combine_docs_chain = create_stuff_documents_chain(llm, retrieval_qa_chat_prompt)
-
-            rag_chain = create_retrieval_chain(vectorstore.as_retriever(search_kwargs={'k':3}), combine_docs_chain)
-
-            response = rag_chain.invoke({"input":prompt})
-
-
-            result=response["answer"]
-            st.chat_message('assistant').markdown(result)
-            st.session_state.messages.append({'role':'assistant', 'content': result})
-
-        except Exception as e:
-            st.error(f"Error: {str(e)}")
 
 if __name__ == "__main__":
     main()

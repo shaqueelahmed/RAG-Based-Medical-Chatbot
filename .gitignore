@@ -4,11 +4,20 @@ __pycache__/
 build/
 dist/
 wheels/
-*.egg-info
+*.egg-info/
 
 # Virtual environments
-.venv
+.venv/
 
 # Environment variables
 .env
 .env.*
+
+# Source documents
+data/*.pdf
+
+# Generated vector stores
+vectorstore/
+
+# IDE
+.vscode/
