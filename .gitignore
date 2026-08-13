@@ -17,7 +17,7 @@ wheels/
 
 
 # Generated vector stores
-vectorstore/
+
 
 # IDE
 .vscode/
