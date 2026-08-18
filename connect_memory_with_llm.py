@@ -37,7 +37,7 @@ def build_rag_chain():
         raise ValueError("GROQ_API_KEY is not set. Add it to the .env file or environment variables.")
 
     llm = ChatGroq(
-        model="llama-3.1-8b-instant",
+        model="openai/gpt-oss-20b",
         temperature=0.1,
         max_tokens=512,
         api_key=groq_api_key,

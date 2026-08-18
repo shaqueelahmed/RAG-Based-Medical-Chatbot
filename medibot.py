@@ -74,7 +74,7 @@ def get_llm():
         raise ValueError("GROQ_API_KEY is not set. Add it to .env locally or to Streamlit secrets for deployment.")
 
     return ChatGroq(
-        model="llama-3.1-8b-instant",
+        model="openai/gpt-oss-20b",
         temperature=0.1,
         max_tokens=512,
         api_key=groq_api_key,

@@ -9,7 +9,7 @@ Unlike standard LLMs that rely purely on pre-trained knowledge, MediBot actively
 * **Language:** Python
 * **Frontend:** Streamlit (Interactive Chat UI)
 * **LLM Orchestration:** LangChain
-* **Large Language Model:** LLaMA-3.1-8b-instant (via Groq API for ultra-fast inference)
+* **Large Language Model:** openai/gpt-oss-20b (via Groq API for ultra-fast inference)
 * **Embeddings:** HuggingFace (`sentence-transformers/all-MiniLM-L6-v2`)
 * **Vector Database:** FAISS (Facebook AI Similarity Search)
 
